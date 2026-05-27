@@ -146,13 +146,19 @@ func resolveStringDefault(defaultVal string) string {
 
 // FieldSchema holds parsed goose tag metadata for a single field.
 type FieldSchema struct {
-	BsonName string
-	GoName   string
-	Default  string
-	Required bool
-	Unique   bool
-	Index    bool
-	Ref      string // collection name for reference
+	BsonName  string
+	GoName    string
+	Default   string
+	Required  bool
+	Unique    bool
+	Index     bool
+	Ref       string // collection name for reference
+	Enum      string // pipe-separated enum values
+	Min       string // minimum value or min length
+	Max       string // maximum value or max length
+	MinLength string // minimum string length
+	MaxLength string // maximum string length
+	Match     string // regex pattern
 }
 
 // GetSchema returns parsed goose tag metadata for all fields.
@@ -192,6 +198,18 @@ func parseSchema(t reflect.Type) []FieldSchema {
 				fs.Default = part[len("default:"):]
 			case strings.HasPrefix(part, "ref:"):
 				fs.Ref = part[len("ref:"):]
+			case strings.HasPrefix(part, "enum:"):
+				fs.Enum = part[len("enum:"):]
+			case strings.HasPrefix(part, "min:"):
+				fs.Min = part[len("min:"):]
+			case strings.HasPrefix(part, "max:"):
+				fs.Max = part[len("max:"):]
+			case strings.HasPrefix(part, "minlength:"):
+				fs.MinLength = part[len("minlength:"):]
+			case strings.HasPrefix(part, "maxlength:"):
+				fs.MaxLength = part[len("maxlength:"):]
+			case strings.HasPrefix(part, "match:"):
+				fs.Match = part[len("match:"):]
 			case part == "required":
 				fs.Required = true
 			case part == "unique":
@@ -225,6 +243,24 @@ func DescribeSchema[T any]() string {
 		}
 		if s.Index {
 			sb.WriteString(" index")
+		}
+		if s.Enum != "" {
+			sb.WriteString(fmt.Sprintf(" enum=[%s]", s.Enum))
+		}
+		if s.Min != "" {
+			sb.WriteString(fmt.Sprintf(" min=%s", s.Min))
+		}
+		if s.Max != "" {
+			sb.WriteString(fmt.Sprintf(" max=%s", s.Max))
+		}
+		if s.MinLength != "" {
+			sb.WriteString(fmt.Sprintf(" minlength=%s", s.MinLength))
+		}
+		if s.MaxLength != "" {
+			sb.WriteString(fmt.Sprintf(" maxlength=%s", s.MaxLength))
+		}
+		if s.Match != "" {
+			sb.WriteString(fmt.Sprintf(" match=%s", s.Match))
 		}
 		sb.WriteString("\n")
 	}
