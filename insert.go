@@ -6,6 +6,16 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// initModelDefaults applies struct tag defaults + BaseModel/SlugModel InitDefaults.
+func initModelDefaults[T any](doc *T) {
+	applyDefaults(doc)
+	if slug := getSlugModel(doc); slug != nil {
+		slug.InitDefaults()
+	} else if base := getBaseModel(doc); base != nil {
+		base.InitDefaults()
+	}
+}
+
 // Create inserts a new document, auto-setting defaults and validating before insert.
 // Runs pre("create") hooks → defaults → validate → insert → post("create") hooks.
 // Equivalent to: await MediaModel.create({...})
@@ -14,12 +24,7 @@ func (m *Model[T]) Create(ctx context.Context, doc *T) (*mongo.InsertOneResult, 
 	if err := m.runDocHooks(ctx, HookPre, EventCreate, doc); err != nil {
 		return nil, err
 	}
-	// Apply goose struct tag defaults
-	applyDefaults(doc)
-	// Also init BaseModel if embedded
-	if base := getBaseModel(doc); base != nil {
-		base.InitDefaults()
-	}
+	initModelDefaults(doc)
 	// Validate before insert
 	if err := Validate(doc); err != nil {
 		return nil, err
@@ -39,10 +44,7 @@ func (m *Model[T]) CreateWithoutValidation(ctx context.Context, doc *T) (*mongo.
 	if err := m.runDocHooks(ctx, HookPre, EventCreate, doc); err != nil {
 		return nil, err
 	}
-	applyDefaults(doc)
-	if base := getBaseModel(doc); base != nil {
-		base.InitDefaults()
-	}
+	initModelDefaults(doc)
 	result, err := m.Col().InsertOne(ctx, doc)
 	if err != nil {
 		return nil, err
@@ -66,10 +68,7 @@ func (m *Model[T]) InsertMany(ctx context.Context, docs []*T) (*mongo.InsertMany
 		if err := m.runDocHooks(ctx, HookPre, EventCreate, doc); err != nil {
 			return nil, err
 		}
-		applyDefaults(doc)
-		if base := getBaseModel(doc); base != nil {
-			base.InitDefaults()
-		}
+		initModelDefaults(doc)
 		if err := Validate(doc); err != nil {
 			return nil, err
 		}

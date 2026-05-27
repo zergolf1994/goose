@@ -7,30 +7,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// BaseModel provides auto-generated _id, slug, and timestamps.
+// BaseModel provides auto-generated _id and timestamps.
 // Embed this in your model structs with `bson:",inline"`.
 //
-// Equivalent to Mongoose:
-//
-//	_id: { type: String, default: uuidv4 }
-//	slug: { type: String, unique: true, default: () => randomString(11) }
-//	timestamps: true
+// Fields: _id (uuid), createdAt, updatedAt
 type BaseModel struct {
 	ID        string    `bson:"_id" json:"id"`
-	Slug      string    `bson:"slug" json:"slug"`
 	CreatedAt time.Time `bson:"createdAt" json:"createdAt"`
 	UpdatedAt time.Time `bson:"updatedAt" json:"updatedAt"`
 }
 
-// InitDefaults sets _id, slug, createdAt, updatedAt if not already set.
+// InitDefaults sets _id, createdAt, updatedAt if not already set.
 // Called automatically by Model.Create() and Model.Save().
 func (b *BaseModel) InitDefaults() {
 	now := time.Now()
 	if b.ID == "" {
 		b.ID = uuid.New().String()
-	}
-	if b.Slug == "" {
-		b.Slug = randomSlug(11)
 	}
 	if b.CreatedAt.IsZero() {
 		b.CreatedAt = now
@@ -41,6 +33,23 @@ func (b *BaseModel) InitDefaults() {
 // TouchUpdatedAt sets updatedAt to now.
 func (b *BaseModel) TouchUpdatedAt() {
 	b.UpdatedAt = time.Now()
+}
+
+// SlugModel extends BaseModel with a random slug field.
+// Use this for models that need a short public-facing identifier.
+//
+// Fields: _id (uuid), slug (random 11-char), createdAt, updatedAt
+type SlugModel struct {
+	BaseModel `bson:",inline"`
+	Slug      string `bson:"slug" json:"slug"`
+}
+
+// InitDefaults sets _id, slug, createdAt, updatedAt if not already set.
+func (s *SlugModel) InitDefaults() {
+	s.BaseModel.InitDefaults()
+	if s.Slug == "" {
+		s.Slug = randomSlug(11)
+	}
 }
 
 // ── random slug generator ──
