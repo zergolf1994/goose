@@ -10,10 +10,19 @@ import (
 )
 
 // UpdateOne updates a single document. Auto-injects updatedAt into $set.
+// Runs pre("update") filter hooks → update → post("update") filter hooks.
 // Equivalent to: await MediaModel.updateOne(filter, { $set: {...} })
 func (m *Model[T]) UpdateOne(ctx context.Context, filter interface{}, update bson.M) (*mongo.UpdateResult, error) {
+	if err := m.runFilterHooks(ctx, HookPre, EventUpdate, filter); err != nil {
+		return nil, err
+	}
 	injectUpdatedAt(update)
-	return m.Col().UpdateOne(ctx, filter, update)
+	result, err := m.Col().UpdateOne(ctx, filter, update)
+	if err != nil {
+		return nil, err
+	}
+	_ = m.runFilterHooks(ctx, HookPost, EventUpdate, filter)
+	return result, nil
 }
 
 // UpdateByID updates a document by _id. Auto-injects updatedAt.
@@ -22,13 +31,23 @@ func (m *Model[T]) UpdateByID(ctx context.Context, id string, update bson.M) (*m
 }
 
 // UpdateMany updates multiple documents. Auto-injects updatedAt.
+// Runs pre("update") filter hooks → update → post("update") filter hooks.
 // Equivalent to: await MediaModel.updateMany(filter, { $set: {...} })
 func (m *Model[T]) UpdateMany(ctx context.Context, filter interface{}, update bson.M) (*mongo.UpdateResult, error) {
+	if err := m.runFilterHooks(ctx, HookPre, EventUpdate, filter); err != nil {
+		return nil, err
+	}
 	injectUpdatedAt(update)
-	return m.Col().UpdateMany(ctx, filter, update)
+	result, err := m.Col().UpdateMany(ctx, filter, update)
+	if err != nil {
+		return nil, err
+	}
+	_ = m.runFilterHooks(ctx, HookPost, EventUpdate, filter)
+	return result, nil
 }
 
 // UpdateOneRaw updates without auto-injecting updatedAt (for $unset, $push, etc).
+// Does NOT run hooks. Use for low-level operations.
 func (m *Model[T]) UpdateOneRaw(ctx context.Context, filter interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
 	return m.Col().UpdateOne(ctx, filter, update, opts...)
 }

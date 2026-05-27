@@ -10,6 +10,7 @@ import (
 // Equivalent to: const MediaModel = mongoose.model('Media', mediaSchema)
 type Model[T any] struct {
 	collName string
+	hooks    *hooks[T]
 }
 
 // NewModel creates a new Model for the given collection name.

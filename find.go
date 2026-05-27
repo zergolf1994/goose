@@ -9,13 +9,18 @@ import (
 )
 
 // FindOne finds a single document matching the filter.
+// Runs pre("find") filter hooks → find → post("find") doc hooks.
 // Equivalent to: await MediaModel.findOne({ _id: id })
 func (m *Model[T]) FindOne(ctx context.Context, filter interface{}, opts ...*options.FindOneOptions) (*T, error) {
+	if err := m.runFilterHooks(ctx, HookPre, EventFind, filter); err != nil {
+		return nil, err
+	}
 	doc := new(T)
 	err := m.Col().FindOne(ctx, filter, opts...).Decode(doc)
 	if err != nil {
 		return nil, err
 	}
+	_ = m.runDocHooks(ctx, HookPost, EventFind, doc)
 	return doc, nil
 }
 
@@ -31,8 +36,12 @@ func (m *Model[T]) FindBySlug(ctx context.Context, slug string) (*T, error) {
 }
 
 // Find returns all documents matching the filter.
+// Runs pre("find") filter hooks → find → post("find") doc hooks on each result.
 // Equivalent to: await MediaModel.find({ fileId: id })
 func (m *Model[T]) Find(ctx context.Context, filter interface{}, opts ...*options.FindOptions) ([]*T, error) {
+	if err := m.runFilterHooks(ctx, HookPre, EventFind, filter); err != nil {
+		return nil, err
+	}
 	cursor, err := m.Col().Find(ctx, filter, opts...)
 	if err != nil {
 		return nil, err
@@ -43,6 +52,7 @@ func (m *Model[T]) Find(ctx context.Context, filter interface{}, opts ...*option
 	if err := cursor.All(ctx, &results); err != nil {
 		return nil, err
 	}
+	_ = m.runDocHooksMany(ctx, HookPost, EventFind, results)
 	return results, nil
 }
 

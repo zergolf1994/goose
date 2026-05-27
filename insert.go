@@ -7,9 +7,13 @@ import (
 )
 
 // Create inserts a new document, auto-setting defaults and validating before insert.
-// Returns ValidationErrors if validation fails.
+// Runs pre("create") hooks → defaults → validate → insert → post("create") hooks.
 // Equivalent to: await MediaModel.create({...})
 func (m *Model[T]) Create(ctx context.Context, doc *T) (*mongo.InsertOneResult, error) {
+	// Pre-create hooks
+	if err := m.runDocHooks(ctx, HookPre, EventCreate, doc); err != nil {
+		return nil, err
+	}
 	// Apply goose struct tag defaults
 	applyDefaults(doc)
 	// Also init BaseModel if embedded
@@ -20,17 +24,31 @@ func (m *Model[T]) Create(ctx context.Context, doc *T) (*mongo.InsertOneResult, 
 	if err := Validate(doc); err != nil {
 		return nil, err
 	}
-	return m.Col().InsertOne(ctx, doc)
+	result, err := m.Col().InsertOne(ctx, doc)
+	if err != nil {
+		return nil, err
+	}
+	// Post-create hooks
+	_ = m.runDocHooks(ctx, HookPost, EventCreate, doc)
+	return result, nil
 }
 
 // CreateWithoutValidation inserts a new document without running validators.
-// Use when you've already validated or need to bypass validation.
+// Still runs hooks. Use when you've already validated or need to bypass validation.
 func (m *Model[T]) CreateWithoutValidation(ctx context.Context, doc *T) (*mongo.InsertOneResult, error) {
+	if err := m.runDocHooks(ctx, HookPre, EventCreate, doc); err != nil {
+		return nil, err
+	}
 	applyDefaults(doc)
 	if base := getBaseModel(doc); base != nil {
 		base.InitDefaults()
 	}
-	return m.Col().InsertOne(ctx, doc)
+	result, err := m.Col().InsertOne(ctx, doc)
+	if err != nil {
+		return nil, err
+	}
+	_ = m.runDocHooks(ctx, HookPost, EventCreate, doc)
+	return result, nil
 }
 
 // Save is an alias for Create (insert only).
@@ -40,19 +58,28 @@ func (m *Model[T]) Save(ctx context.Context, doc *T) (*mongo.InsertOneResult, er
 }
 
 // InsertMany inserts multiple documents, auto-setting defaults and validating.
+// Runs pre("create") hooks on each document.
 // Equivalent to: await MediaModel.insertMany([...])
 func (m *Model[T]) InsertMany(ctx context.Context, docs []*T) (*mongo.InsertManyResult, error) {
 	iDocs := make([]interface{}, len(docs))
 	for i, doc := range docs {
+		if err := m.runDocHooks(ctx, HookPre, EventCreate, doc); err != nil {
+			return nil, err
+		}
 		applyDefaults(doc)
 		if base := getBaseModel(doc); base != nil {
 			base.InitDefaults()
 		}
-		// Validate each doc
 		if err := Validate(doc); err != nil {
 			return nil, err
 		}
 		iDocs[i] = doc
 	}
-	return m.Col().InsertMany(ctx, iDocs)
+	result, err := m.Col().InsertMany(ctx, iDocs)
+	if err != nil {
+		return nil, err
+	}
+	// Post hooks for each doc
+	_ = m.runDocHooksMany(ctx, HookPost, EventCreate, docs)
+	return result, nil
 }
